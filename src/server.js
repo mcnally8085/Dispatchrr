@@ -113,6 +113,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (method === "GET" && (pathname === "/admin" || pathname === "/admin.html")) {
+    await sendHtml(res, join(publicDir, "admin.html"));
+    return;
+  }
+
   if (method === "GET" && pathname === "/api/dashboard") {
     sendJson(res, 200, { dashboard: getDashboard() });
     return;
