@@ -180,6 +180,177 @@
         color: var(--muted);
         font-size: 0.9rem;
       }
+
+      /* ── Job card interactivity ─────────────────────────────── */
+      .job-card {
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        will-change: transform;
+      }
+
+      .job-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        border-color: var(--primary);
+      }
+
+      .job-card:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+
+      /* ── Detail overlay backdrop ────────────────────────────── */
+      .detail-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0);
+        z-index: 100;
+        pointer-events: none;
+        transition: background 0.3s ease;
+      }
+
+      .detail-backdrop.open {
+        background: rgba(0, 0, 0, 0.45);
+        pointer-events: all;
+      }
+
+      /* ── Detail panel (slides in from right) ───────────────── */
+      .detail-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(520px, 100vw);
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        z-index: 101;
+        display: flex;
+        flex-direction: column;
+        transform: translateX(100%);
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
+      }
+
+      .detail-panel.open {
+        transform: translateX(0);
+      }
+
+      .detail-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        gap: 1rem;
+      }
+
+      .detail-panel-header h2 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .detail-close-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border: none;
+        background: var(--bg);
+        border-radius: 8px;
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 1.1rem;
+        flex-shrink: 0;
+        transition: background 0.15s, color 0.15s;
+      }
+
+      .detail-close-btn:hover {
+        background: var(--border);
+        color: var(--foreground);
+      }
+
+      .detail-panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      /* ── Placeholder content ────────────────────────────────── */
+      .detail-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        gap: 0.75rem;
+        color: var(--muted);
+        text-align: center;
+        padding: 3rem 2rem;
+      }
+
+      .detail-placeholder .placeholder-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: rgba(31, 111, 235, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .detail-placeholder h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--foreground);
+      }
+
+      .detail-placeholder p {
+        font-size: 0.85rem;
+        max-width: 280px;
+        line-height: 1.6;
+      }
+
+      /* ── Job detail summary strip ───────────────────────────── */
+      .detail-summary {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .detail-summary .customer-name {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .detail-summary .route {
+        font-size: 0.82rem;
+        color: var(--foreground);
+        line-height: 1.6;
+      }
+
+      .detail-summary .route span {
+        color: var(--muted);
+      }
+
+      .detail-summary .meta-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-top: 0.25rem;
+      }
     </style>
   </head>
   <body>
@@ -203,6 +374,18 @@
       </section>
     </main>
 
+    <!-- Detail panel -->
+    <div class="detail-backdrop" id="detail-backdrop"></div>
+    <aside class="detail-panel" id="detail-panel" role="dialog" aria-modal="true" aria-label="Job details">
+      <div class="detail-panel-header">
+        <h2 id="detail-title">Job Details</h2>
+        <button class="detail-close-btn" id="detail-close" aria-label="Close details">&#x2715;</button>
+      </div>
+      <div class="detail-panel-body" id="detail-panel-body">
+        <!-- populated by JS -->
+      </div>
+    </aside>
+
     <script>
       const fmtTime = (iso) => {
         if (!iso) return "—";
@@ -218,8 +401,63 @@
         }
       };
 
+      // ── Detail panel ──────────────────────────────────────────
+      const backdrop = document.getElementById("detail-backdrop");
+      const panel = document.getElementById("detail-panel");
+      const panelTitle = document.getElementById("detail-title");
+      const panelBody = document.getElementById("detail-panel-body");
+      const closeBtn = document.getElementById("detail-close");
+
+      function openDetail(job) {
+        panelTitle.textContent = job.title;
+
+        panelBody.innerHTML = `
+          <div class="detail-summary">
+            <p class="customer-name">${job.customerName}</p>
+            <p class="route">
+              <span>From</span> ${job.pickupAddress}<br />
+              <span>To</span> ${job.dropoffAddress}
+            </p>
+            <div class="meta-row">
+              <span class="priority ${job.priority}">${job.priority}</span>
+              <span class="due">Due ${fmtTime(job.dueAt)}</span>
+            </div>
+          </div>
+          <div class="detail-placeholder">
+            <div class="placeholder-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                <path d="M3 9h18M9 21V9"/>
+              </svg>
+            </div>
+            <h3>Full job details coming soon</h3>
+            <p>This panel will show driver assignment, status timeline, contact info, notes, and more in a future iteration.</p>
+          </div>`;
+
+        backdrop.classList.add("open");
+        panel.classList.add("open");
+        panel.focus();
+        document.addEventListener("keydown", handleEsc);
+      }
+
+      function closeDetail() {
+        backdrop.classList.remove("open");
+        panel.classList.remove("open");
+        document.removeEventListener("keydown", handleEsc);
+      }
+
+      function handleEsc(e) {
+        if (e.key === "Escape") closeDetail();
+      }
+
+      closeBtn.addEventListener("click", closeDetail);
+      backdrop.addEventListener("click", closeDetail);
+
+      // ── Card rendering ────────────────────────────────────────
+      let jobsCache = [];
+
       const jobCard = (job) => `
-        <article class="job-card">
+        <article class="job-card" data-job-id="${job.id}" tabindex="0" role="button" aria-label="View details for ${job.title}">
           <h3>${job.title}</h3>
           <p class="customer">${job.customerName}</p>
           <p class="route">
@@ -232,6 +470,21 @@
           </div>
         </article>`;
 
+      function bindCardClicks() {
+        document.querySelectorAll(".job-card[data-job-id]").forEach((card) => {
+          card.addEventListener("click", () => {
+            const job = jobsCache.find((j) => j.id === card.dataset.jobId);
+            if (job) openDetail(job);
+          });
+          card.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              card.click();
+            }
+          });
+        });
+      }
+
       async function loadDashboard() {
         const container = document.getElementById("new-jobs");
         const countEl = document.getElementById("new-count");
@@ -242,6 +495,7 @@
           if (!res.ok) throw new Error("Request failed: " + res.status);
           const { jobs } = await res.json();
 
+          jobsCache = jobs;
           countEl.textContent = jobs.length;
 
           if (!jobs.length) {
@@ -250,6 +504,7 @@
           }
 
           container.innerHTML = jobs.map(jobCard).join("");
+          bindCardClicks();
         } catch (err) {
           console.log("[v0] dashboard load error:", err.message);
           container.innerHTML =
