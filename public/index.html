@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-bg">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dispatchrr Dashboard</title>
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --surface: #ffffff;
+        --border: #e3e6ea;
+        --foreground: #1c2128;
+        --muted: #6b7280;
+        --primary: #1f6feb;
+        --primary-foreground: #ffffff;
+        --high: #d1453b;
+        --normal: #2563eb;
+        --low: #6b7280;
+        --urgent: #b91c1c;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--foreground);
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.25rem 1.5rem;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+
+      header h1 {
+        font-size: 1.25rem;
+        font-weight: 700;
+      }
+
+      header p {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .refresh-btn {
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--primary-foreground);
+        background: var(--primary);
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+      }
+
+      .refresh-btn:hover {
+        opacity: 0.9;
+      }
+
+      main {
+        padding: 1.5rem;
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+      }
+
+      .column {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        width: 360px;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      .column-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .column-header h2 {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .count-badge {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--primary);
+        background: rgba(31, 111, 235, 0.1);
+        border-radius: 999px;
+        padding: 0.15rem 0.6rem;
+      }
+
+      .column-body {
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-height: calc(100vh - 220px);
+        overflow-y: auto;
+      }
+
+      .job-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.9rem 1rem;
+        background: var(--surface);
+      }
+
+      .job-card h3 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .job-card .customer {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 0.6rem;
+      }
+
+      .job-card .route {
+        font-size: 0.8rem;
+        color: var(--foreground);
+        margin-bottom: 0.6rem;
+      }
+
+      .job-card .route span {
+        color: var(--muted);
+      }
+
+      .job-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+
+      .priority {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        color: var(--primary-foreground);
+      }
+
+      .priority.high { background: var(--high); }
+      .priority.urgent { background: var(--urgent); }
+      .priority.normal { background: var(--normal); }
+      .priority.low { background: var(--low); }
+
+      .due {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .empty,
+      .loading {
+        padding: 2rem 1rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Dispatchrr Dashboard</h1>
+        <p>Live view of incoming dispatch jobs</p>
+      </div>
+      <button class="refresh-btn" id="refresh">Refresh</button>
+    </header>
+
+    <main>
+      <section class="column">
+        <div class="column-header">
+          <h2>New Jobs</h2>
+          <span class="count-badge" id="new-count">0</span>
+        </div>
+        <div class="column-body" id="new-jobs">
+          <div class="loading">Loading jobs&hellip;</div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const fmtTime = (iso) => {
+        if (!iso) return "—";
+        try {
+          return new Date(iso).toLocaleString([], {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        } catch {
+          return iso;
+        }
+      };
+
+      const jobCard = (job) => `
+        <article class="job-card">
+          <h3>${job.title}</h3>
+          <p class="customer">${job.customerName}</p>
+          <p class="route">
+            <span>From</span> ${job.pickupAddress}<br />
+            <span>To</span> ${job.dropoffAddress}
+          </p>
+          <div class="job-meta">
+            <span class="priority ${job.priority}">${job.priority}</span>
+            <span class="due">Due ${fmtTime(job.dueAt)}</span>
+          </div>
+        </article>`;
+
+      async function loadDashboard() {
+        const container = document.getElementById("new-jobs");
+        const countEl = document.getElementById("new-count");
+        container.innerHTML = '<div class="loading">Loading jobs&hellip;</div>';
+
+        try {
+          const res = await fetch("/api/jobs?status=new");
+          if (!res.ok) throw new Error("Request failed: " + res.status);
+          const { jobs } = await res.json();
+
+          countEl.textContent = jobs.length;
+
+          if (!jobs.length) {
+            container.innerHTML = '<div class="empty">No new jobs right now.</div>';
+            return;
+          }
+
+          container.innerHTML = jobs.map(jobCard).join("");
+        } catch (err) {
+          console.log("[v0] dashboard load error:", err.message);
+          container.innerHTML =
+            '<div class="empty">Could not load jobs. Is the API running?</div>';
+        }
+      }
+
+      document.getElementById("refresh").addEventListener("click", loadDashboard);
+      loadDashboard();
+    </script>
+  </body>
+</html>

@@ -1,4 +1,7 @@
 import http from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import {
   addStatusUpdate,
   assignDriver,
@@ -13,6 +16,19 @@ import {
 } from "./store.js";
 
 const port = Number.parseInt(process.env.PORT ?? "4000", 10);
+
+const publicDir = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
+
+const sendHtml = async (res, filePath) => {
+  try {
+    const html = await readFile(filePath, "utf8");
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(html);
+  } catch {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not found");
+  }
+};
 
 const sendJson = (res, statusCode, body) => {
   res.writeHead(statusCode, {
@@ -89,6 +105,11 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "GET" && pathname === "/health") {
     sendJson(res, 200, { status: "ok", service: "dispatchrr-api" });
+    return;
+  }
+
+  if (method === "GET" && (pathname === "/" || pathname === "/index.html")) {
+    await sendHtml(res, join(publicDir, "index.html"));
     return;
   }
 
